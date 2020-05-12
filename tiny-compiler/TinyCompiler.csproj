@@ -47,6 +47,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Controller\Parser.cs" />
     <Compile Include="Controller\Scanner.cs" />
     <Compile Include="Model\Token.cs" />
     <Compile Include="View\Form1.cs">
