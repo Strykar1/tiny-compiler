@@ -124,6 +124,7 @@ namespace TinyCompiler.Controller
             TreeNode treeNode = new TreeNode();
 
             match(TokenType.Id);
+            treeNode.Text = getLastToken().Lexeme;
             match(TokenType.Assign);
             treeNode.Nodes.Insert(0, expression());
 
