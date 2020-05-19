@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
 using TinyCompiler.Controller;
@@ -57,6 +58,7 @@ namespace TinyCompiler
                 //tableForm.SetTableText(tableText);
                 //tableForm.Show();
                 CodePanel.Visible = false;
+                TreeText.Visible = true;
                 TreeText.Text = tableText;
 
                 string errorString = "";
@@ -76,6 +78,31 @@ namespace TinyCompiler
         }
         private void TT_button_Click(object sender, EventArgs e)
         {
+            if (CodeText.Text != "")
+            {
+                Scanner scanner = new Scanner(CodeText.Text + " ");
+                var tokens = scanner.getTokens();
+                Parser parser = new Parser(tokens);
+
+                TreeView tree = new TreeView();
+                tree.Nodes.Add(parser.Parse());
+                tree.Dock = DockStyle.Fill;
+
+                CodePanel.Visible = false;
+                TreeText.Visible = false;
+                TreePanel.Visible = true;
+
+                TreePanel.Controls.Add(tree);
+                tree.ExpandAll();
+                if(parser.ErrorString != "")
+                    ErrorText.Text = parser.ErrorString;
+                else
+                    ErrorText.Text = "All Clear!";
+            }
+            else
+            {
+                ErrorText.Text = "No parsable code detected";
+            }
         }
         OpenFileDialog OFD_Setup()
         {

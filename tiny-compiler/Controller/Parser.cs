@@ -7,14 +7,15 @@ using TinyCompiler.Model;
 
 namespace TinyCompiler.Controller
 {
-    public class Parser
+    class Parser
     {
         private List<Token> tokens ;
+        public String ErrorString { get; private set; }
 
         int currentTokenIndex;
         Token currentToken = new Token();
 
-        Parser(List<Token> tokenList)
+        public Parser(List<Token> tokenList)
         {
             this.tokens = tokenList;
         }
@@ -22,49 +23,59 @@ namespace TinyCompiler.Controller
         {
             currentTokenIndex = 0;
             currentToken = tokens[currentTokenIndex];
+            ErrorString = "";
 
             return statementSequence(); ;
         }
         private void setNextToken()
         {
-            if (tokens.ElementAtOrDefault(currentTokenIndex) != null)
+            if (currentTokenIndex < tokens.Count-1)
             {
-                currentToken = tokens[currentTokenIndex];
                 currentTokenIndex++;
+                currentToken = tokens[currentTokenIndex];                
             }
+
         }
         private Token getLastToken()
         {
             return tokens[currentTokenIndex - 1];
         }
-        private void ThrowSyntaxError()
+        private void ThrowSyntaxError(TokenType expectedTokenType,TokenType foundTokenType)
         {
-            //todo syntax error
+            ErrorString = ("Syntax Error: Expected token type ( "+expectedTokenType.ToString()+" ) and found ( "+ foundTokenType.ToString() + " )");
+        }
+        private void ThrowInvalidSyntaxError(TokenType foundTokenType)
+        {
+            ErrorString = ("Syntax Error: found Invalid TokenType ( " + foundTokenType.ToString() + " )");
         }
         private void match(TokenType expectedTokenType)
         {
             if (currentToken.Type == expectedTokenType)
+            {
                 setNextToken();
+            }
             else
             {
-                ThrowSyntaxError();
+                ThrowSyntaxError(expectedTokenType, currentToken.Type);
             }
         }
         TreeNode statementSequence()
         {
             TreeNode start = new TreeNode();
             TreeNode treeNode = new TreeNode();
-            TreeNode nextTempNode = new TreeNode();
 
             treeNode = statement();
-            start = treeNode;
-            while (currentToken.Type == Token.SPECIAL_SYMBOLS[";"])
-            {
+            start.Nodes.Add(treeNode);
+            while (currentToken.Type != TokenType.EndOfFile &&
+                    currentToken.Type != TokenType.End &&
+                    currentToken.Type != TokenType.Until &&
+                    currentToken.Type != TokenType.Else) { 
                 match(TokenType.SemiColon);
+                TreeNode nextTempNode = new TreeNode();
                 nextTempNode = statement();
-                start.Nodes.Insert(0, treeNode);
-                start.Nodes.Insert(1,nextTempNode);
-                treeNode = nextTempNode;
+
+                Console.WriteLine(currentToken.Type.ToString() + " is token number: " + currentTokenIndex + " of " + tokens.Count);
+                start.Nodes.Add(nextTempNode);
             }
             return start;
         }
@@ -73,7 +84,7 @@ namespace TinyCompiler.Controller
             TreeNode treeNode = new TreeNode();
             switch (currentToken.Type)
             {
-                case TokenType.Assign:
+                case TokenType.Id:
                     treeNode = assignStatement();
                     break;
                 case TokenType.If:
@@ -88,21 +99,25 @@ namespace TinyCompiler.Controller
                 case TokenType.Write:
                     treeNode = writeStatement();
                     break;
+                default:
+                    ThrowInvalidSyntaxError(currentToken.Type);
+                    break;
             }
             return treeNode;
         }
         TreeNode ifStatement()
         {
             TreeNode treeNode = new TreeNode();
+            treeNode.Text = "if";
 
             match(TokenType.If);
-            treeNode.Nodes.Insert(0,expression());
+            treeNode.Nodes.Add(expression());
             match(TokenType.Then);
-            treeNode.Nodes.Insert(1, statementSequence());
+            treeNode.Nodes.Add(statementSequence());
             if(currentToken.Type == TokenType.Else)
             {
                 match(TokenType.Else);
-                treeNode.Nodes.Insert(2, statementSequence());
+                treeNode.Nodes.Add(statementSequence());
             }
             match(TokenType.End);
 
@@ -111,22 +126,22 @@ namespace TinyCompiler.Controller
         TreeNode repeatStatement()
         {
             TreeNode treeNode = new TreeNode();
-
+            treeNode.Text = "repeat";
             match(TokenType.Repeat);
-            treeNode.Nodes.Insert(0,statementSequence());
+            treeNode.Nodes.Add(statementSequence());
             match(TokenType.Until);
-            treeNode.Nodes.Insert(0, expression());
+            treeNode.Nodes.Add(expression());
 
             return treeNode;
         }
         TreeNode assignStatement()
         {
             TreeNode treeNode = new TreeNode();
-
+            
             match(TokenType.Id);
-            treeNode.Text = getLastToken().Lexeme;
+            treeNode.Text = "assign \n("+getLastToken().Lexeme+")";
             match(TokenType.Assign);
-            treeNode.Nodes.Insert(0, expression());
+            treeNode.Nodes.Add(expression());
 
             return treeNode;
         }
@@ -138,15 +153,15 @@ namespace TinyCompiler.Controller
             match(TokenType.Read);
             match(TokenType.Id);
 
-            treeNode.Text = getLastToken().Lexeme;
+            treeNode.Text = "read \n("+getLastToken().Lexeme+")";
             return treeNode;
         }
         TreeNode writeStatement()
         {
             TreeNode treeNode = new TreeNode();
-
+            treeNode.Text = "write";
             match(TokenType.Write);
-            treeNode.Nodes.Insert(0, expression());
+            treeNode.Nodes.Add(expression());
 
             return treeNode;
         }
@@ -156,11 +171,12 @@ namespace TinyCompiler.Controller
             TreeNode nextTempNode = new TreeNode();
 
             treeNode = simpleExpression();
-            while (currentToken.Type == TokenType.LessThan || currentToken.Type == TokenType.IsEqual)
+            if (currentToken.Type == TokenType.LessThan || currentToken.Type == TokenType.IsEqual)
             {
-                nextTempNode.Nodes.Insert(0, treeNode);
+                nextTempNode.Text = "op \n("+currentToken.Lexeme+")";
+                nextTempNode.Nodes.Add(treeNode);
                 match(currentToken.Type);
-                nextTempNode.Nodes.Insert(1, simpleExpression());
+                nextTempNode.Nodes.Add(simpleExpression());
 
                 treeNode = nextTempNode;
             }
@@ -175,9 +191,10 @@ namespace TinyCompiler.Controller
             treeNode = term();
             while (currentToken.Type == TokenType.Plus || currentToken.Type == TokenType.Minus)
             {
-                nextTempNode.Nodes.Insert(0, treeNode);
+                nextTempNode.Nodes.Add(treeNode);
                 match(currentToken.Type);
-                nextTempNode.Nodes.Insert(1, term());
+                nextTempNode.Text = "op\n(" + getLastToken().Lexeme + ")";
+                nextTempNode.Nodes.Add(term());
 
                 treeNode = nextTempNode;
             }
@@ -191,9 +208,10 @@ namespace TinyCompiler.Controller
             treeNode = factor();
             while (currentToken.Type == TokenType.Mult || currentToken.Type == TokenType.Division)
             {
-                nextTempNode.Nodes.Insert(0, treeNode);
+                nextTempNode.Nodes.Add(treeNode);
                 match(currentToken.Type);
-                nextTempNode.Nodes.Insert(1, factor());
+                nextTempNode.Text = "op\n(" + getLastToken().Lexeme + ")";
+                nextTempNode.Nodes.Add(factor());
 
                 treeNode = nextTempNode;
             }
@@ -210,15 +228,15 @@ namespace TinyCompiler.Controller
                     match(TokenType.BraceRight);
                     break;
                 case TokenType.Integer:
-                    treeNode.Text = currentToken.Lexeme;
+                    treeNode.Text = "Integer\n("+currentToken.Lexeme+")";
                     match(TokenType.Integer);
                     break;
                 case TokenType.Float:
-                    treeNode.Text = currentToken.Lexeme;
+                    treeNode.Text = "Float\n(" + currentToken.Lexeme + ")";
                     match(TokenType.Float);
                     break;
                 case TokenType.Id:
-                    treeNode.Text = currentToken.Lexeme;
+                    treeNode.Text = "Id\n("+currentToken.Lexeme+")";
                     match(TokenType.Id);
                     break;
             }
